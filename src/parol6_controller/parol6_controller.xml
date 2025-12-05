@@ -1,0 +1,10 @@
+<library path="parol6_controller">
+    <class name="parol6_controller/Parol6Interface"
+      type="parol6_controller::Parol6Interface"
+      base_class_type="hardware_interface::SystemInterface"
+    >
+      <description>
+        Parol6 Hardware Interface
+      </description>
+    </class>
+  </library>

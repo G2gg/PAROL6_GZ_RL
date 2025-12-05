@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot SVG Drawer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .preview {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9f9f9;
+        }
+        .preview img, .preview svg {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .tab.active {
+            border: 1px solid #ddd;
+            border-bottom-color: white;
+            border-radius: 4px 4px 0 0;
+            margin-bottom: -1px;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        input[type="file"], input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .paper-dimensions {
+            display: flex;
+            gap: 10px;
+        }
+        .paper-dimensions div {
+            flex: 1;
+        }
+        .corner-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .corner-point {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .point-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .coordinate-inputs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        .status-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Robot SVG Drawer</h1>
+    
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" onclick="openTab(event, 'upload-tab')">Upload SVG</div>
+            <div class="tab" onclick="openTab(event, 'calibrate-tab')">Calibrate Paper</div>
+            <div class="tab" onclick="openTab(event, 'status-tab')">System Status</div>
+        </div>
+        
+        <div id="upload-tab" class="tab-content active">
+            <div class="card">
+                <h2>Upload SVG for Drawing</h2>
+                <form id="uploadForm">
+                    <div class="form-group">
+                        <label for="svgFile">Select SVG File:</label>
+                        <input type="file" id="svgFile" accept=".svg" onchange="previewSVG(this)">
+                    </div>
+                    
+                    <div id="preview" class="preview">
+                        <p>SVG preview will appear here</p>
+                    </div>
+                    
+                    <button type="button" onclick="uploadSVG()">Start Drawing</button>
+                    
+                    <div id="uploadStatus" class="status"></div>
+                </form>
+            </div>
+        </div>
+        
+        <div id="calibrate-tab" class="tab-content">
+            <div class="card">
+                <h2>Calibrate Paper Position</h2>
+                <p>Define the three corner points of the A4 paper in robot coordinates:</p>
+                
+                <div class="corner-inputs">
+                    <div class="corner-point">
+                        <div class="point-label">Bottom Left Corner:</div>
+                        <div class="coordinate-inputs">
+                            <input type="number" id="bl-x" placeholder="X" step="0.001" value="-0.6">
+                            <input type="number" id="bl-y" placeholder="Y" step="0.001" value="0.18">
+                            <input type="number" id="bl-z" placeholder="Z" step="0.001" value="0.03">
+                        </div>
+                    </div>
+                    
+                    <div class="corner-point">
+                        <div class="point-label">Bottom Right Corner:</div>
+                        <div class="coordinate-inputs">
+                            <input type="number" id="br-x" placeholder="X" step="0.001" value="0.3">
+                            <input type="number" id="br-y" placeholder="Y" step="0.001" value="0.18">
+                            <input type="number" id="br-z" placeholder="Z" step="0.001" value="0.03">
+                        </div>
+                    </div>
+                    
+                    <div class="corner-point">
+                        <div class="point-label">Top Left Corner:</div>
+                        <div class="coordinate-inputs">
+                            <input type="number" id="tl-x" placeholder="X" step="0.001" value="-0.6">
+                            <input type="number" id="tl-y" placeholder="Y" step="0.001" value="0.18">
+                            <input type="number" id="tl-z" placeholder="Z" step="0.001" value="0.33">
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="calibratePaper()">Calibrate</button>
+                
+                <div id="calibrateStatus" class="status"></div>
+            </div>
+        </div>
+        
+        <div id="status-tab" class="tab-content">
+            <div class="card">
+                <h2>System Status</h2>
+                
+                <h3>Paper Information</h3>
+                <div id="paperInfo">Loading paper information...</div>
+                
+                <div class="status-container">
+                    <h3>Robot Status</h3>
+                    <div id="robotStatus">Loading robot status...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Tab navigation
+        function openTab(evt, tabName) {
+            const tabs = document.getElementsByClassName("tab");
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].className = tabs[i].className.replace(" active", "");
+            }
+            
+            const tabContents = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabContents.length; i++) {
+                tabContents[i].className = tabContents[i].className.replace(" active", "");
+            }
+            
+            document.getElementById(tabName).className += " active";
+            evt.currentTarget.className += " active";
+            
+            // If status tab is selected, refresh the status information
+            if (tabName === "status-tab") {
+                fetchPaperInfo();
+            }
+        }
+        
+        // Preview SVG file
+        function previewSVG(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    const preview = document.getElementById('preview');
+                    preview.innerHTML = e.target.result;
+                };
+                
+                reader.readAsText(input.files[0]);
+            }
+        }
+        
+        // Upload SVG file to server
+        function uploadSVG() {
+            const fileInput = document.getElementById('svgFile');
+            const statusDiv = document.getElementById('uploadStatus');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusDiv.className = "status error";
+                statusDiv.innerHTML = "Please select an SVG file first.";
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            statusDiv.className = "status";
+            statusDiv.innerHTML = "Uploading and processing SVG...";
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.className = "status success";
+                    statusDiv.innerHTML = data.message;
+                } else {
+                    statusDiv.className = "status error";
+                    statusDiv.innerHTML = data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.className = "status error";
+                statusDiv.innerHTML = "Error: " + error.message;
+            });
+        }
+        
+        // Calibrate paper position
+        function calibratePaper() {
+            const statusDiv = document.getElementById('calibrateStatus');
+            
+            // Get corner coordinates
+            const bottomLeft = [
+                parseFloat(document.getElementById('bl-x').value),
+                parseFloat(document.getElementById('bl-y').value),
+                parseFloat(document.getElementById('bl-z').value)
+            ];
+            
+            const bottomRight = [
+                parseFloat(document.getElementById('br-x').value),
+                parseFloat(document.getElementById('br-y').value),
+                parseFloat(document.getElementById('br-z').value)
+            ];
+            
+            const topLeft = [
+                parseFloat(document.getElementById('tl-x').value),
+                parseFloat(document.getElementById('tl-y').value),
+                parseFloat(document.getElementById('tl-z').value)
+            ];
+            
+            // Check for valid inputs
+            if (isNaN(bottomLeft[0]) || isNaN(bottomLeft[1]) || isNaN(bottomLeft[2]) ||
+                isNaN(bottomRight[0]) || isNaN(bottomRight[1]) || isNaN(bottomRight[2]) ||
+                isNaN(topLeft[0]) || isNaN(topLeft[1]) || isNaN(topLeft[2])) {
+                statusDiv.className = "status error";
+                statusDiv.innerHTML = "Please enter valid coordinates for all corner points.";
+                return;
+            }
+            
+            statusDiv.className = "status";
+            statusDiv.innerHTML = "Calibrating paper position...";
+            
+            fetch('/calibrate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    corners: [bottomLeft, bottomRight, topLeft]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.className = "status success";
+                    statusDiv.innerHTML = data.message;
+                    fetchPaperInfo(); // Update paper info if calibration was successful
+                } else {
+                    statusDiv.className = "status error";
+                    statusDiv.innerHTML = data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.className = "status error";
+                statusDiv.innerHTML = "Error: " + error.message;
+            });
+        }
+        
+        // Fetch paper information
+        function fetchPaperInfo() {
+            const paperInfoDiv = document.getElementById('paperInfo');
+            
+            fetch('/paper_info')
+            .then(response => response.json())
+            .then(data => {
+                let html = `
+                    <div class="paper-dimensions">
+                        <div>
+                            <label>Width:</label>
+                            <span>${data.width.toFixed(3)} m (${(data.width * 1000).toFixed(1)} mm)</span>
+                        </div>
+                        <div>
+                            <label>Height:</label>
+                            <span>${data.height.toFixed(3)} m (${(data.height * 1000).toFixed(1)} mm)</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label>Position:</label>
+                        <span>X: ${data.position[0].toFixed(3)} m, Y: ${data.position[1].toFixed(3)} m, Z: ${data.position[2].toFixed(3)} m</span>
+                    </div>
+                    <div>
+                        <label>Orientation (quaternion):</label>
+                        <span>X: ${data.orientation[0].toFixed(3)}, Y: ${data.orientation[1].toFixed(3)}, Z: ${data.orientation[2].toFixed(3)}, W: ${data.orientation[3].toFixed(3)}</span>
+                    </div>
+                `;
+                paperInfoDiv.innerHTML = html;
+            })
+            .catch(error => {
+                paperInfoDiv.innerHTML = "Error fetching paper information: " + error.message;
+            });
+            
+            // You could also add code here to fetch robot status from a /robot_status endpoint if implemented
+            const robotStatusDiv = document.getElementById('robotStatus');
+            robotStatusDiv.innerHTML = "Robot is ready for drawing operations.";
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchPaperInfo();
+        });
+    </script>  
+</body>
+</html>

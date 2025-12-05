@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/opt/ros/humble/include/**",
+        "/home/gunesh_pop_nvidia/parol6_gz_ws/src/parol6_bringup/include/**",
+        "/home/gunesh_pop_nvidia/parol6_gz_ws/src/parol6_controller/include/**",
+        "/home/gunesh_pop_nvidia/parol6_gz_ws/src/parol6_description/include/**",
+        "/home/gunesh_pop_nvidia/parol6_gz_ws/src/parol6_gui/include/**",
+        "/home/gunesh_pop_nvidia/parol6_gz_ws/src/parol6_moveit/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

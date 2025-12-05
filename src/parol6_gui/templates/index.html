@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>6DOF Robot Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #333333; /* Changed to dark grey */
+            color: #ffffff; /* Changed text color to white for readability */
+        }
+        .slider-container {
+            margin-bottom: 20px;
+        }
+        label {
+            display: inline-block;
+            width: 50px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 300px;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        button {
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+        }
+        .move-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .home-button {
+            background-color: #2196F3;
+            color: white;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #555555; /* Adjusted for dark theme */
+            border-radius: 5px;
+        }
+        .warning {
+            color: #ff5555; /* Lighter red for visibility on dark background */
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>6DOF Stepper Robot Control</h1>
+    
+    <div id="not-homed-warning" class="warning">Warning: Robot not homed yet. Please home the robot first.</div>
+    
+    <div class="slider-container">
+        <label for="J1">J1:</label>
+        <input type="range" id="J1" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J1')">
+        <input type="number" id="J1-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J1')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J2">J2:</label>
+        <input type="range" id="J2" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J2')">
+        <input type="number" id="J2-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J2')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J3">J3:</label>
+        <input type="range" id="J3" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J3')">
+        <input type="number" id="J3-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J3')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J4">J4:</label>
+        <input type="range" id="J4" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J4')">
+        <input type="number" id="J4-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J4')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J5">J5:</label>
+        <input type="range" id="J5" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J5')">
+        <input type="number" id="J5-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J5')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J6">J6:</label>
+        <input type="range" id="J6" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J6')">
+        <input type="number" id="J6-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J6')"> deg
+    </div>
+    
+    <div class="button-container">
+        <button class="home-button" onclick="homeRobot()">Home Robot</button>
+        <button class="move-button" onclick="moveRobot()">Move Robot</button>
+    </div>
+    
+    <div class="status" id="status">Status: Ready</div>
+    
+    <script>
+        let isHomed = false;
+        
+        function updateHomedStatus() {
+            const warning = document.getElementById('not-homed-warning');
+            if (isHomed) {
+                warning.style.display = 'none';
+            } else {
+                warning.style.display = 'block';
+            }
+        }
+        
+        // Update joint value when slider changes
+        function updateJointValue(joint) {
+            const slider = document.getElementById(joint);
+            const valueInput = document.getElementById(joint + '-value');
+            valueInput.value = parseFloat(slider.value).toFixed(1);
+            
+            // Send updated values to backend
+            sendJointValues();
+        }
+        
+        // Update slider when value input changes
+        function updateSlider(joint) {
+            const slider = document.getElementById(joint);
+            const valueInput = document.getElementById(joint + '-value');
+            slider.value = valueInput.value;
+            
+            // Send updated values to backend
+            sendJointValues();
+        }
+        
+        // Send joint values to backend
+        function sendJointValues() {
+            const jointValues = {};
+            ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                jointValues[joint] = parseFloat(document.getElementById(joint).value);
+            });
+            
+            fetch('/set_joint_values', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jointValues),
+            });
+        }
+        
+        // Home robot
+        function homeRobot() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Homing robot... (This may take up to 45 seconds)';
+            
+            fetch('/home_robot', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot homed successfully!';
+                    isHomed = true;
+                    updateHomedStatus();
+                    
+                    // Reset sliders to zero
+                    ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                        document.getElementById(joint).value = 0;
+                        document.getElementById(joint + '-value').value = 0;
+                    });
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        
+        // Move robot to current joint values
+        function moveRobot() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Moving robot...';
+            
+            fetch('/move_robot', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot moved to target position!';
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        
+        // Load initial joint values and update UI
+        fetch('/get_joint_values')
+            .then(response => response.json())
+            .then(data => {
+                for (const joint in data) {
+                    if (document.getElementById(joint)) {
+                        document.getElementById(joint).value = data[joint];
+                        document.getElementById(joint + '-value').value = data[joint].toFixed(1);
+                    }
+                }
+            });
+        
+        // Initialize warning display
+        updateHomedStatus();
+    </script>
+</body>
+</html>

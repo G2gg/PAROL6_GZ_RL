@@ -1,0 +1,10 @@
+<library path="parol6_controller">
+    <class name="micro_ros_controller/MicroRosInterface"
+      type="micro_ros_controller::MicroRosInterface"
+      base_class_type="hardware_interface::SystemInterface"
+    >
+      <description>
+        Micro ROS Hardware Interface
+      </description>
+    </class>
+  </library>

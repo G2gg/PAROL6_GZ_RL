@@ -1,0 +1,65 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+arm_controller:
+  ros__parameters:
+    joints:
+      - J1
+      - J2
+      - J3
+      - J4
+      - J5
+      - J6
+    command_interfaces:
+      - position
+      - velocity
+      # - acceleration
+
+    state_interfaces:
+      - position
+      - velocity
+      # - acceleration
+    # open_loop_control: true
+
+    # PD gains matching Isaac Lab actuator model
+    # From parol6_robot.py ImplicitActuatorCfg
+    gains:
+      J1:
+        p: 65.0
+        d: 3.25
+        i: 0.0
+        i_clamp: 0.0
+      J2:
+        p: 512.5
+        d: 25.625
+        i: 0.0
+        i_clamp: 0.0
+      J3:
+        p: 340.0
+        d: 17.0
+        i: 0.0
+        i_clamp: 0.0
+      J4:
+        p: 25.0
+        d: 1.25
+        i: 0.0
+        i_clamp: 0.0
+      J5:
+        p: 25.0
+        d: 1.25
+        i: 0.0
+        i_clamp: 0.0
+      J6:
+        p: 22.0
+        d: 1.1
+        i: 0.0
+        i_clamp: 0.0
+

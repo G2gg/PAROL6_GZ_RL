@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>6DOF Robot Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .slider-container {
+            margin-bottom: 20px;
+        }
+        label {
+            display: inline-block;
+            width: 50px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 300px;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        button {
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+        }
+        .move-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .home-button {
+            background-color: #2196F3;
+            color: white;
+        }
+        .estop-button {
+            background-color: #D32F2F;  
+            color: white;              
+            font-weight: bold;         
+            padding: 15px 25px;
+        }
+
+        .resume-button {
+            background-color: #FFC107;  
+            color: black;              
+            font-weight: bold;         
+        }
+        .ik-button {
+            background-color: #FF9800;
+            color: white;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+        }
+        .warning {
+            color: red;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .button-container {
+            display: flex;
+            gap: 10px;
+        }
+        h2 {
+            margin-top: 30px;
+            color: #333;
+        }
+        .position-container {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 30px;
+        }
+        .position-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>6DOF Stepper Robot Control</h1>
+    
+    
+    <div id="not-homed-warning" class="warning">Warning: Robot not homed yet. Please home the robot first.</div>
+    
+    <h2>Joint Control</h2>
+    <div class="slider-container">
+        <label for="J1">J1:</label>
+        <input type="range" id="J1" min="-62.047" max="123.047" step="1" value="0" oninput="updateJointValue('J1')">
+        <input type="number" id="J1-value" min="-62.047" max="123.047" step="1" value="0" oninput="updateSlider('J1')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J2">J2:</label>
+        <input type="range" id="J2" min="-70" max="52" step="1" value="0" oninput="updateJointValue('J2')">
+        <input type="number" id="J2-value" min="-70" max="52" step="1" value="0" oninput="updateSlider('J2')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J3">J3:</label>
+        <input type="range" id="J3" min="-107.86" max="72" step="1" value="0" oninput="updateJointValue('J3')">
+        <input type="number" id="J3-value" min="-107.86" max="72" step="1" value="0" oninput="updateSlider('J3')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J4">J4:</label>
+        <input type="range" id="J4" min="-105.47" max="105.47" step="1" value="0" oninput="updateJointValue('J4')">
+        <input type="number" id="J4-value" min="-105.47" max="105.47" step="1" value="0" oninput="updateSlider('J4')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J5">J5:</label>
+        <input type="range" id="J5" min="-90" max="90" step="1" value="0" oninput="updateJointValue('J5')">
+        <input type="number" id="J5-value" min="-90" max="90" step="1" value="0" oninput="updateSlider('J5')"> deg
+    </div>
+    
+    <div class="slider-container">
+        <label for="J6">J6:</label>
+        <input type="range" id="J6" min="-180" max="180" step="1" value="0" oninput="updateJointValue('J6')">
+        <input type="number" id="J6-value" min="-180" max="180" step="1" value="0" oninput="updateSlider('J6')"> deg
+    </div>
+    
+    <div class="button-container">
+        <button class="home-button" onclick="homeRobot()">Home Robot</button>
+        <button class="move-button" onclick="moveRobot()">Move Robot</button>
+        <button class="home-button" onclick="refreshEndEffectorPosition()">Refresh Position</button>
+        <button class="move-button" onclick="zeroAllJoints()">Zero All Joints</button>
+        <button class="estop-button" onclick="emergencyStop()">EMERGENCY STOP</button>
+        <button class="resume-button" onclick="resumeOperation()">Resume</button>
+    </div>
+    
+    <div class="position-container">
+        <h2>End-Effector Position Control</h2>
+        
+        <!-- Add this section for workspace limits -->
+        <div class="limits-info" id="workspace-limits">
+            <p><strong>Workspace Limits:</strong> Loading...</p>
+        </div>
+        
+        <div class="position-input">
+            <label>X:</label>
+            <input type="number" id="pos-x" step="0.01" value=""> cm
+            
+            <label>Y:</label>
+            <input type="number" id="pos-y" step="0.01" value=""> cm
+            
+            <label>Z:</label>
+            <input type="number" id="pos-z" step="0.01" value=""> cm
+        </div>
+        
+        <!-- Add this section to show current end effector position -->
+        <div class="current-position">
+            <p><strong>Current End Effector Position:</strong></p>
+            <p id="current-ee-position">X: 20.000, Y: 0.000, Z: 33.400</p>
+        </div>
+        
+        <button class="ik-button" onclick="moveToPosition()">Calculate IK & Move</button>
+    </div>
+    
+    <div class="status" id="status">Status: Ready</div>
+    
+    <script>
+        let isHomed = true; // Set to true initially to match backend
+        
+        function updateHomedStatus() {
+            const warning = document.getElementById('not-homed-warning');
+            if (isHomed) {
+                warning.style.display = 'none';
+            } else {
+                warning.style.display = 'block';
+            }
+        }
+        
+        // Update joint value when slider changes
+        function updateJointValue(joint) {
+            const slider = document.getElementById(joint);
+            const valueInput = document.getElementById(joint + '-value');
+            valueInput.value = parseFloat(slider.value).toFixed(1);
+            
+            // Send updated values to backend
+            sendJointValues();
+        }
+        
+        // Update slider when value input changes
+        function updateSlider(joint) {
+            const slider = document.getElementById(joint);
+            const valueInput = document.getElementById(joint + '-value');
+            slider.value = valueInput.value;
+            
+            // Send updated values to backend
+            sendJointValues();
+        }
+        
+        // Send joint values to backend
+        function sendJointValues() {
+            const jointValues = {};
+            ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                jointValues[joint] = parseFloat(document.getElementById(joint).value);
+            });
+            
+            fetch('/set_joint_values', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jointValues),
+            });
+        }
+        
+        // Home robot
+        function homeRobot() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Homing robot... (This may take up to 45 seconds)';
+            
+            fetch('/home_robot', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot homed successfully!';
+                    isHomed = true;
+                    updateHomedStatus();
+                    
+                    // Reset sliders to zero
+                    ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                        document.getElementById(joint).value = 0;
+                        document.getElementById(joint + '-value').value = 0;
+                    });
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        
+        // Move robot to current joint values
+        function moveRobot() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Moving robot...';
+            
+            
+            fetch('/move_robot', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot moved to target position!';
+                    updateEndEffectorDisplay();
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        function loadWorkspaceLimits() {
+        fetch('/get_workspace_limits')
+            .then(response => response.json())
+            .then(data => {
+                const limitsDiv = document.getElementById('workspace-limits');
+                limitsDiv.innerHTML = `
+                    <p><strong>Workspace Limits:</strong></p>
+                    <p>X: ${data.x.min.toFixed(2)} to ${data.x.max.toFixed(2)}</p>
+                    <p>Y: ${data.y.min.toFixed(2)} to ${data.y.max.toFixed(2)}</p>
+                    <p>Z: ${data.z.min.toFixed(2)} to ${data.z.max.toFixed(2)}</p>
+                `;
+                
+                // Update input min/max values
+                document.getElementById('pos-x').min = data.x.min;
+                document.getElementById('pos-x').max = data.x.max;
+                document.getElementById('pos-y').min = data.y.min;
+                document.getElementById('pos-y').max = data.y.max;
+                document.getElementById('pos-z').min = data.z.min;
+                document.getElementById('pos-z').max = data.z.max;
+            })
+            .catch(error => {
+                console.error('Error loading workspace limits:', error);
+            });
+        }
+    
+        // Update end effector position display
+        function updateEndEffectorDisplay() {
+            fetch('/get_end_effector_position')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('current-ee-position').innerText = 
+                        `X: ${data.x.toFixed(3)}, Y: ${data.y.toFixed(3)}, Z: ${data.z.toFixed(3)}`;
+                })
+                .catch(error => {
+                    console.error('Error updating end effector position:', error);
+                });
+        }
+        function emergencyStop() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Sending EMERGENCY STOP...';
+            fetch('/emergency_stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    statusDiv.innerText = (data.status === 'success')
+                        ? 'Status: EMERGENCY STOP sent!'
+                        : 'Status: Error - ' + data.message;
+                })
+                .catch(error => {
+                    statusDiv.innerText = 'Status: Error - could not connect to server';
+                });
+        }
+        
+        function resumeOperation() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Sending resume command...';
+            
+            fetch('/resume_operation', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Resume command sent!';
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Resume error:', error);
+            });
+        }
+
+        // Modify the existing sendJointValues function to update end effector position
+        function sendJointValues() {
+            const jointValues = {};
+            ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                jointValues[joint] = parseFloat(document.getElementById(joint).value);
+            });
+            
+            fetch('/set_joint_values', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jointValues),
+            });
+            // .then(() => {
+            //     // Update end effector position after joint values change
+            //     updateEndEffectorDisplay();
+            // });
+        }
+        // Move robot to position using IK
+        function moveToPosition() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Calculating IK and moving robot...';
+            
+            const posX = parseFloat(document.getElementById('pos-x').value);
+            const posY = parseFloat(document.getElementById('pos-y').value);
+            const posZ = parseFloat(document.getElementById('pos-z').value);
+            
+            fetch('/move_to_position', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    x: posX,
+                    y: posY,
+                    z: posZ,
+                    orientation_w: 1.0
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot moved to target position!';
+                    
+                    // Update sliders to reflect the new joint values
+                    for (const joint in data.joint_values) {
+                        if (document.getElementById(joint)) {
+                            document.getElementById(joint).value = data.joint_values[joint];
+                            document.getElementById(joint + '-value').value = data.joint_values[joint].toFixed(1);
+                        }
+                    }
+                    updateEndEffectorDisplay();
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                    updateEndEffectorDisplay();
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        function refreshEndEffectorPosition() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Refreshing end effector position...';
+
+            updateEndEffectorDisplay();
+            
+            statusDiv.innerText = 'Status: Position refreshed!';
+        }
+
+        function zeroAllJoints() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Status: Zeroing all joints...';
+            updateEndEffectorDisplay();
+            // Set all joint sliders and number inputs to 0
+            ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach(joint => {
+                document.getElementById(joint).value = 0;
+                document.getElementById(joint + '-value').value = 0;
+            });
+
+            // Send the updated (zeroed) joint values to backend
+            sendJointValues();
+
+            // Move the robot to zero position
+            fetch('/move_robot', {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusDiv.innerText = 'Status: Robot moved to zero position!';
+                    updateEndEffectorDisplay();
+                } else {
+                    statusDiv.innerText = 'Status: Error - ' + data.message;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerText = 'Status: Error connecting to server';
+                console.error('Error:', error);
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load initial joint values
+            fetch('/get_joint_values')
+                .then(response => response.json())
+                .then(data => {
+                    for (const joint in data) {
+                        if (document.getElementById(joint)) {
+                            document.getElementById(joint).value = data[joint];
+                            document.getElementById(joint + '-value').value = data[joint].toFixed(1);
+                        }
+                    }
+                    updateEndEffectorDisplay();
+                });
+            
+            // Load workspace limits
+            loadWorkspaceLimits();
+            
+            // Set up periodic updates of end effector position (every 500ms)
+            //setInterval(updateEndEffectorDisplay, 500);
+            
+            // Initialize warning display
+            updateHomedStatus();
+        });
+    </script>
+</body>
+</html>
