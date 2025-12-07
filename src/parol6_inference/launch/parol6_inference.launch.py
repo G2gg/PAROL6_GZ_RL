@@ -63,25 +63,25 @@ def generate_launch_description():
 
     publish_rate_arg = DeclareLaunchArgument(
         'publish_rate',
-        default_value='100.0',
+        default_value='120.0',
         description='Observation publishing rate (Hz)'
     )
 
     use_fk_arg = DeclareLaunchArgument(
         'use_fk',
         default_value='false',
-        description='Use TF for EE position (FK calculation needs URDF tuning)'
+        description='Use coded FK for EE position (false = use TF, which is more accurate)'
     )
 
     control_rate_arg = DeclareLaunchArgument(
         'control_rate',
-        default_value='100.0',
+        default_value='120.0',
         description='Policy inference rate (Hz)'
     )
 
     use_ema_smoothing_arg = DeclareLaunchArgument(
         'use_ema_smoothing',
-        default_value='true',
+        default_value='false',
         description='Enable exponential moving average action smoothing'
     )
 
@@ -93,8 +93,8 @@ def generate_launch_description():
 
     trajectory_time_arg = DeclareLaunchArgument(
         'trajectory_time',
-        default_value='0.1',
-        description='Trajectory execution time in seconds (higher = smoother, lower = faster response)'
+        default_value='0.01',  # 10ms trajectory execution time for high-frequency control
+        description='Trajectory execution time in seconds'
     )
 
     run_inference_arg = DeclareLaunchArgument(
@@ -129,6 +129,7 @@ def generate_launch_description():
             'target_x': LaunchConfiguration('target_x'),
             'target_y': LaunchConfiguration('target_y'),
             'target_z': LaunchConfiguration('target_z'),
+            'use_sim_time': True,  # CRITICAL: Must use simulation time
         }],
         remappings=[
             ('/joint_states', '/joint_states'),
@@ -149,6 +150,7 @@ def generate_launch_description():
             'use_ema_smoothing': LaunchConfiguration('use_ema_smoothing'),
             'ema_alpha': LaunchConfiguration('ema_alpha'),
             'trajectory_time': LaunchConfiguration('trajectory_time'),
+            'use_sim_time': True,  # CRITICAL: Must use simulation time
         }],
         condition=IfCondition(LaunchConfiguration('run_inference'))
     )
@@ -165,6 +167,7 @@ def generate_launch_description():
             'target_z': LaunchConfiguration('target_z'),
             'base_frame': LaunchConfiguration('base_frame'),
             'marker_scale': LaunchConfiguration('marker_scale'),
+            'use_sim_time': True,  # CRITICAL: Must use simulation time
         }],
         condition=IfCondition(LaunchConfiguration('use_interactive_marker'))
     )

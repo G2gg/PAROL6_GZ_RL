@@ -26,6 +26,14 @@ arm_controller:
     state_interfaces:
       - position
       - velocity
+
+
+    # CRITICAL: Must be > 0 to accept trajectory commands
+    # Set to 0.5s (500ms) to safely handle 15Hz policy updates (67ms period)
+    cmd_timeout: 0.5
+
+    # Allow continuous policy control with non-zero velocities
+    allow_nonzero_velocity_at_trajectory_end: true
       # - acceleration
     # open_loop_control: true
 

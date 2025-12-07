@@ -2,7 +2,7 @@
 """
 Policy Inference Node for PAROL6 Reaching Task
 
-Subscribes to observations and publishes actions from trained policy.
+Subscribes to 25D observations and publishes actions from trained policy.
 Supports multiple policy formats: ONNX, PyTorch, TorchScript
 """
 
@@ -27,7 +27,9 @@ class PolicyInference(Node):
         self.declare_parameter('control_rate', 100.0)  # Hz
         self.declare_parameter('use_ema_smoothing', True)
         self.declare_parameter('ema_alpha', 0.3)
-        self.declare_parameter('trajectory_time', 0.1)  # Time to reach target position (seconds)
+        self.declare_parameter('trajectory_time', 1.0)  # Time to reach target position (seconds)
+
+       
 
         # Get parameters
         policy_path = self.get_parameter('policy_path').value
@@ -45,6 +47,12 @@ class PolicyInference(Node):
         self.joint_limits_lower = np.array([-1.083, -1.221, -1.8825, -1.841, -1.571, -3.142])
         self.joint_limits_upper = np.array([2.148, 0.907, 1.2566, 1.841, 1.571, 3.142])
 
+        # Action scale (from Isaac Lab training config)
+        self.action_scale = 0.25  # From parol6_env_cfg.py: ActionsCfg.arm_action.scale
+
+        # Current joint positions (updated from observations)
+        self.current_joint_pos = np.zeros(6)
+
         # Observation subscriber
         self.obs_sub = self.create_subscription(
             Float32MultiArray,
@@ -60,6 +68,13 @@ class PolicyInference(Node):
             10
         )
 
+        # Action feedback publisher (for observation loop)
+        self.action_feedback_pub = self.create_publisher(
+            Float32MultiArray,
+            '/parol6/last_action',
+            10
+        )
+
         # Action smoothing state
         self.prev_action = None
 
@@ -69,6 +84,8 @@ class PolicyInference(Node):
 
         # Load policy
         self.policy = self.load_policy(policy_path)
+        self.policy_counter = 0
+        self.last_action = None  # Store last computed action
 
         # Try to load observation normalization after policy is loaded
         self.load_obs_normalization(policy_path)
@@ -253,7 +270,7 @@ class PolicyInference(Node):
         For ONNX/PyTorch models: observation normalization is applied here.
 
         Args:
-            observation: 19D numpy array (raw)
+            observation: 25D numpy array (raw)
 
         Returns:
             action: 6D numpy array (normalized [-1, 1])
@@ -276,11 +293,9 @@ class PolicyInference(Node):
                 obs_tensor = torch.from_numpy(obs_input)
                 action_tensor = self.policy(obs_tensor)
 
-                # IMPORTANT: Apply tanh activation if not already in model
-                # TorchScript exports from Isaac Lab may not include final tanh layer
-                # This ensures actions are bounded to [-1, 1] range
-                if self.policy_type == 'torchscript':
-                    action_tensor = torch.tanh(action_tensor)
+                # IMPORTANT: Apply tanh activation to bound actions to [-1, 1]
+                # The exported policy may not include the final tanh layer
+                action_tensor = torch.tanh(action_tensor)
 
                 action = action_tensor.cpu().numpy()[0]
 
@@ -290,20 +305,28 @@ class PolicyInference(Node):
             self.get_logger().error(f'Unknown policy type: {self.policy_type}')
             return np.zeros(self.num_joints)
 
-    def denormalize_action(self, action):
+    def apply_action_delta(self, action_normalized):
         """
-        Convert normalized action [-1, 1] to joint positions [lower, upper].
+        Convert normalized action [-1, 1] to joint position command.
+
+        Matches Isaac Lab training: action = current + (normalized * scale)
+
+        This is the CORRECT approach matching the training configuration:
+        - Policy outputs normalized actions in [-1, 1]
+        - Actions are scaled by 0.25 (from parol6_env_cfg.py)
+        - Actions are DELTAS added to current position, not absolute positions
 
         Args:
-            action: 6D array in range [-1, 1]
+            action_normalized: 6D array in range [-1, 1]
 
         Returns:
-            joint_positions: 6D array in joint limits
+            joint_positions: 6D array of commanded joint positions
         """
-        # Map from [-1, 1] to [lower, upper]
-        joint_pos = self.joint_limits_lower + (action + 1.0) / 2.0 * (
-            self.joint_limits_upper - self.joint_limits_lower
-        )
+        # Compute delta from normalized action (matching Isaac Lab's JointPositionActionCfg)
+        delta = action_normalized * self.action_scale
+
+        # Add delta to current position
+        joint_pos = self.current_joint_pos + delta
 
         # Clamp to limits for safety
         joint_pos = np.clip(joint_pos, self.joint_limits_lower, self.joint_limits_upper)
@@ -335,28 +358,39 @@ class PolicyInference(Node):
         Process observation and publish action.
 
         Args:
-            msg: Float32MultiArray containing 19D observation
+            msg: Float32MultiArray containing 25D observation
         """
         # Convert to numpy array
         observation = np.array(msg.data, dtype=np.float32)
 
-        if observation.shape[0] != 19:
-            self.get_logger().error(f'Invalid observation size: {observation.shape[0]} (expected 19)')
+        if observation.shape[0] != 25:
+            self.get_logger().error(f'Invalid observation size: {observation.shape[0]} (expected 25)')
             return
 
         self.last_observation = observation
 
-        # Run policy inference
+        # Extract current joint positions (needed for delta actions)
+        self.current_joint_pos = observation[0:6]
+
+        # Run policy inference at full rate (no decimation)
         action_normalized = self.run_inference(observation)  # Range: [-1, 1]
 
-        # Denormalize to joint positions
-        joint_positions = self.denormalize_action(action_normalized)
+        # Publish action feedback (normalized actions for observation loop)
+        feedback_msg = Float32MultiArray()
+        feedback_msg.data = action_normalized.astype(np.float32).tolist()
+        self.action_feedback_pub.publish(feedback_msg)
+
+        # Apply action delta to current position (matching Isaac Lab training)
+        joint_positions = self.apply_action_delta(action_normalized)
 
         # Apply EMA smoothing if enabled
         if self.use_ema_smoothing:
             joint_positions = self.apply_ema_smoothing(joint_positions)
 
-        # Publish action as JointTrajectory
+        # Store the action
+        self.last_action = joint_positions
+
+        # Publish action at full rate
         self.publish_action(joint_positions)
 
         # Update statistics
@@ -364,17 +398,16 @@ class PolicyInference(Node):
 
         # Log occasionally with detailed debugging
         if self.inference_count % 100 == 0:
-            distance = observation[18]
-            ee_pos = observation[12:15]
-            target_pos = observation[15:18]
+            target_pos = observation[12:15]
+            target_quat = observation[15:19]
+            prev_actions = observation[19:25]
             joint_pos = observation[0:6]
             joint_vel = observation[6:12]
 
             self.get_logger().info(
-                f'Inference #{self.inference_count} | '
-                f'Distance: {distance:.4f}m | '
-                f'EE: [{ee_pos[0]:.3f}, {ee_pos[1]:.3f}, {ee_pos[2]:.3f}] | '
-                f'Target: [{target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f}]'
+                f'Inference #{self.inference_count} (25D) | '
+                f'Target: [{target_pos[0]:.3f}, {target_pos[1]:.3f}, {target_pos[2]:.3f}] | '
+                f'Quat: [{target_quat[0]:.2f}, {target_quat[1]:.2f}, {target_quat[2]:.2f}, {target_quat[3]:.2f}]'
             )
             self.get_logger().info(
                 f'  Current joints: [{joint_pos[0]:.3f}, {joint_pos[1]:.3f}, {joint_pos[2]:.3f}, '
@@ -385,36 +418,50 @@ class PolicyInference(Node):
                 f'{joint_vel[3]:.3f}, {joint_vel[4]:.3f}, {joint_vel[5]:.3f}]'
             )
             self.get_logger().info(
-                f'  Policy output (normalized): [{action_normalized[0]:.3f}, {action_normalized[1]:.3f}, '
-                f'{action_normalized[2]:.3f}, {action_normalized[3]:.3f}, {action_normalized[4]:.3f}, {action_normalized[5]:.3f}]'
-            )
-            self.get_logger().info(
-                f'  Commanded joints: [{joint_positions[0]:.3f}, {joint_positions[1]:.3f}, {joint_positions[2]:.3f}, '
-                f'{joint_positions[3]:.3f}, {joint_positions[4]:.3f}, {joint_positions[5]:.3f}]'
+                f'  Previous actions: [{prev_actions[0]:.3f}, {prev_actions[1]:.3f}, {prev_actions[2]:.3f}, '
+                f'{prev_actions[3]:.3f}, {prev_actions[4]:.3f}, {prev_actions[5]:.3f}]'
             )
 
-            # Calculate error metrics
-            pos_error = np.linalg.norm(ee_pos - target_pos)
-            joint_change = np.linalg.norm(joint_positions - joint_pos)
-            self.get_logger().info(
-                f'  Position error: {pos_error:.4f}m | Joint change: {joint_change:.4f}rad'
-            )
+            # Only log action if we have one
+            if self.last_action is not None:
+                # Compute action delta for logging
+                action_delta = self.last_action - self.current_joint_pos
+
+                self.get_logger().info(
+                    f'  Policy output (normalized): [{prev_actions[0]:.3f}, {prev_actions[1]:.3f}, '
+                    f'{prev_actions[2]:.3f}, {prev_actions[3]:.3f}, {prev_actions[4]:.3f}, {prev_actions[5]:.3f}]'
+                )
+                self.get_logger().info(
+                    f'  Action delta (scaled): [{action_delta[0]:.3f}, {action_delta[1]:.3f}, {action_delta[2]:.3f}, '
+                    f'{action_delta[3]:.3f}, {action_delta[4]:.3f}, {action_delta[5]:.3f}]'
+                )
+                self.get_logger().info(
+                    f'  Commanded joints: [{self.last_action[0]:.3f}, {self.last_action[1]:.3f}, {self.last_action[2]:.3f}, '
+                    f'{self.last_action[3]:.3f}, {self.last_action[4]:.3f}, {self.last_action[5]:.3f}]'
+                )
 
     def publish_action(self, joint_positions):
         """
         Publish joint positions as JointTrajectory.
+
+        Creates a single-point trajectory (matching robotis_lab approach):
+        - Point 0: Target position at t=trajectory_time
 
         Args:
             joint_positions: 6D array of target joint positions (radians)
         """
         msg = JointTrajectory()
 
-        # Leave header stamp empty - controller will use current time
+        # Set header timestamp to current time
+        msg.header.stamp = self.get_clock().now().to_msg()
         msg.joint_names = self.joint_names
 
+        # Single point: Move to target position
         point = JointTrajectoryPoint()
         point.positions = joint_positions.tolist()
-        point.velocities = [0.0] * self.num_joints  # Add zero velocities for smooth motion
+        point.velocities = []  # Empty velocities
+        point.accelerations = []  # Empty accelerations
+        point.effort = []  # Empty effort
 
         # Convert trajectory time to sec + nanosec
         traj_time_sec = int(self.trajectory_time)
