@@ -305,33 +305,43 @@ class PolicyInference(Node):
             self.get_logger().error(f'Unknown policy type: {self.policy_type}')
             return np.zeros(self.num_joints)
 
+    # def apply_action_delta(self, action_normalized):
+    #     """
+    #     Convert normalized action [-1, 1] to joint position command.
+
+    #     Matches Isaac Lab training: action = current + (normalized * scale)
+
+    #     This is the CORRECT approach matching the training configuration:
+    #     - Policy outputs normalized actions in [-1, 1]
+    #     - Actions are scaled by 0.25 (from parol6_env_cfg.py)
+    #     - Actions are DELTAS added to current position, not absolute positions
+
+    #     Args:
+    #         action_normalized: 6D array in range [-1, 1]
+
+    #     Returns:
+    #         joint_positions: 6D array of commanded joint positions
+    #     """
+    #     # Compute delta from normalized action (matching Isaac Lab's JointPositionActionCfg)
+    #     delta = action_normalized * self.action_scale
+
+    #     # Add delta to current position
+    #     joint_pos = self.current_joint_pos + delta
+
+    #     # Clamp to limits for safety
+    #     joint_pos = np.clip(joint_pos, self.joint_limits_lower, self.joint_limits_upper)
+
+    #     return joint_pos
+
     def apply_action_delta(self, action_normalized):
-        """
-        Convert normalized action [-1, 1] to joint position command.
+      # Use DEFAULT positions (all zeros for PAROL6)
+      default_joint_pos = np.zeros(6)
 
-        Matches Isaac Lab training: action = current + (normalized * scale)
+      delta = action_normalized * self.action_scale
+      joint_pos = default_joint_pos + delta  # Use default, not current!
 
-        This is the CORRECT approach matching the training configuration:
-        - Policy outputs normalized actions in [-1, 1]
-        - Actions are scaled by 0.25 (from parol6_env_cfg.py)
-        - Actions are DELTAS added to current position, not absolute positions
-
-        Args:
-            action_normalized: 6D array in range [-1, 1]
-
-        Returns:
-            joint_positions: 6D array of commanded joint positions
-        """
-        # Compute delta from normalized action (matching Isaac Lab's JointPositionActionCfg)
-        delta = action_normalized * self.action_scale
-
-        # Add delta to current position
-        joint_pos = self.current_joint_pos + delta
-
-        # Clamp to limits for safety
-        joint_pos = np.clip(joint_pos, self.joint_limits_lower, self.joint_limits_upper)
-
-        return joint_pos
+      joint_pos = np.clip(joint_pos, self.joint_limits_lower, self.joint_limits_upper)
+      return joint_pos
 
     def apply_ema_smoothing(self, action):
         """
