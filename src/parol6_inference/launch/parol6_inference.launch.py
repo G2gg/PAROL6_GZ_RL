@@ -93,7 +93,7 @@ def generate_launch_description():
 
     trajectory_time_arg = DeclareLaunchArgument(
         'trajectory_time',
-        default_value='0.01',  # 10ms trajectory execution time for high-frequency control
+        default_value='0.5',  # 200ms trajectory execution time
         description='Trajectory execution time in seconds'
     )
 

@@ -30,44 +30,44 @@ arm_controller:
 
     # CRITICAL: Must be > 0 to accept trajectory commands
     # Set to 0.5s (500ms) to safely handle 15Hz policy updates (67ms period)
-    cmd_timeout: 0.5
+    # cmd_timeout: 0.5
 
-    # Allow continuous policy control with non-zero velocities
-    allow_nonzero_velocity_at_trajectory_end: true
-      # - acceleration
-    # open_loop_control: true
+    # # Allow continuous policy control with non-zero velocities
+    # allow_nonzero_velocity_at_trajectory_end: true
+    #   # - acceleration
+    # # open_loop_control: true
 
-    # PD gains matching Isaac Lab actuator model
-    # From parol6_robot.py ImplicitActuatorCfg
-    gains:
-      J1:
-        p: 65.0
-        d: 3.25
-        i: 0.0
-        i_clamp: 0.0
-      J2:
-        p: 512.5
-        d: 25.625
-        i: 0.0
-        i_clamp: 0.0
-      J3:
-        p: 340.0
-        d: 17.0
-        i: 0.0
-        i_clamp: 0.0
-      J4:
-        p: 25.0
-        d: 1.25
-        i: 0.0
-        i_clamp: 0.0
-      J5:
-        p: 25.0
-        d: 1.25
-        i: 0.0
-        i_clamp: 0.0
-      J6:
-        p: 22.0
-        d: 1.1
-        i: 0.0
-        i_clamp: 0.0
+    # # PD gains matching Isaac Lab actuator model
+    # # From parol6_robot.py ImplicitActuatorCfg
+    # gains:
+    #   J1:
+    #     p: 65.0
+    #     d: 3.25
+    #     i: 0.0
+    #     i_clamp: 0.0
+    #   J2:
+    #     p: 512.5
+    #     d: 25.625
+    #     i: 0.0
+    #     i_clamp: 0.0
+    #   J3:
+    #     p: 340.0
+    #     d: 17.0
+    #     i: 0.0
+    #     i_clamp: 0.0
+    #   J4:
+    #     p: 25.0
+    #     d: 1.25
+    #     i: 0.0
+    #     i_clamp: 0.0
+    #   J5:
+    #     p: 25.0
+    #     d: 1.25
+    #     i: 0.0
+    #     i_clamp: 0.0
+    #   J6:
+    #     p: 22.0
+    #     d: 1.1
+    #     i: 0.0
+    #     i_clamp: 0.0
 

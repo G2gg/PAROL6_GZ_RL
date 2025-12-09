@@ -43,7 +43,7 @@ class PolicyInference(Node):
         self.joint_names = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
         self.num_joints = 6
 
-        # Joint limits (from Isaac Lab config)
+        # Joint limits (from As per the HARDWARE config)
         self.joint_limits_lower = np.array([-1.083, -1.221, -1.8825, -1.841, -1.571, -3.142])
         self.joint_limits_upper = np.array([2.148, 0.907, 1.2566, 1.841, 1.571, 3.142])
 
